@@ -12,7 +12,7 @@ setup(
     url='http://keep.com',
     license=open('LICENSE').read(),
     description='Gus schleps code onto boxes',
-    long_description=open('README').read(),
+    long_description=open('README.rst').read(),
     install_requires=open('pip_requirements.txt').readlines(),
     dependency_links=open('dependency_links.txt').readlines(),
 )
