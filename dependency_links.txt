@@ -1,0 +1,2 @@
+git+ssh://git@github.com/saltmine/sqlcontext.git#egg=sqlcontext-0.0.1
+git+ssh://git@github.com/saltmine/newman.git#egg=newman-1.0.0

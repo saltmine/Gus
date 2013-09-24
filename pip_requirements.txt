@@ -1,0 +1,3 @@
+Flask==0.10.1
+newman==1.0.0
+sqlcontext==0.0.1
