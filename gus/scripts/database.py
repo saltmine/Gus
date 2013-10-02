@@ -23,26 +23,27 @@ def nuke(test_db=True, username='postgres'):
   subprocess.call(cmd)
 
 
-def update_db(test_db=False):
+def update(test_db=False):
   '''Updates the DB to the latest version available in the sql directory'''
   import pkg_resources
+  import gus.config
 
   if test_db:
-    db_conn = watson.database.get_test_db_conn()
+    db_conn = gus.config.get_test_db_conn()
   else:
-    db_conn = watson.database.get_db_conn()
+    db_conn = gus.config.get_db_conn()
 
-  bootstrap_code = pkg_resources.resource_string('watson', 'sql/bootstrap.sql')
+  bootstrap_code = pkg_resources.resource_string('gus', 'sql/bootstrap.sql')
   migration_files = []
   code_files = []
   try:
-    migration_files = pkg_resources.resource_listdir('watson', 'sql/migrations')
+    migration_files = pkg_resources.resource_listdir('gus', 'sql/migrations')
   except OSError:
     print "WARNING - No SQL migration files were found. If you haven't "\
         "written any yet, you can ignore this warning"
 
   try:
-    code_files = pkg_resources.resource_listdir('watson', 'sql/code')
+    code_files = pkg_resources.resource_listdir('gus', 'sql/code')
   except OSError:
     print "WARNING - No SQL code files were found. If you haven't written "\
         "any yet, you can ignore this warning"
@@ -81,7 +82,7 @@ def update_db(test_db=False):
     new_version = int(f[:3])
     if current_version < new_version:
       #run the upgrade
-      guts = pkg_resources.resource_string('watson', 'sql/migrations/%s' % f)
+      guts = pkg_resources.resource_string('gus', 'sql/migrations/%s' % f)
       with db_conn.cursor() as c:
         print "executing upgrade script %s" % f
         c.execute(guts)
@@ -91,16 +92,7 @@ def update_db(test_db=False):
 
   #now do all stored procedures
   for f in code_files:
-    script_guts = pkg_resources.resource_string('watson', 'sql/code/%s' % f)
+    script_guts = pkg_resources.resource_string('gus', 'sql/code/%s' % f)
     with db_conn.cursor() as c:
       print "executing code script %s" % f
       c.execute(script_guts)
-
-
-if __name__ == "__main__":
-  ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(
-                              os.path.abspath(__file__)), "../.."))
-  if ROOT_PATH not in sys.path:
-    sys.path.insert(0, ROOT_PATH)
-  print "sys path is %s" % sys.path
-  update_db()

@@ -15,4 +15,9 @@ setup(
     long_description=open('README.rst').read(),
     install_requires=open('pip_requirements.txt').readlines(),
     dependency_links=open('dependency_links.txt').readlines(),
+    entry_points={
+      'console_scripts': [
+        'gus = gus.commands:main'
+      ]
+    }
 )
