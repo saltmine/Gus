@@ -42,7 +42,7 @@ CREATE TABLE projects (
   project_id integer NOT NULL
       DEFAULT nextval('project_id_seq')
       PRIMARY KEY,
-  project_name varchar(255),
+  project_name varchar(255) UNIQUE,
   date_created timestamp without time zone NOT NULL DEFAULT now()
 );
 
