@@ -2,6 +2,7 @@
 Database interface for the project model
 '''
 
+from lipstick.mget import mget, build_clauses
 import gus.config
 
 PUBLIC_FIELDS = ('project_id', 'project_name', 'date_created',)
@@ -67,16 +68,22 @@ def get_by_name(project_name):
   return res
 
 
-def mget_all():
+@mget
+def mget_all(count=False, ids_only=False, offset=None, limit=None):
   '''Return all projects, in date created order
   '''
-  fields = get_fields_for_sql()
+  fields = get_fields_for_sql(count=count, ids_only=ids_only)
+  page_clause, order_clause = build_clauses(count=count,
+      default_order='project_id')
+  query_vars = {'offset': offset, 'limit': limit}
   with gus.config.get_db_conn().cursor() as c:
     c.execute('''
         SELECT
           %s
         FROM
           projects p
-        ''' % fields)
+        %s
+        %s
+        ''' % (fields, order_clause, page_clause), query_vars)
     res = c.fetchall()
   return res
