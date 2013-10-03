@@ -46,12 +46,15 @@ CREATE TABLE projects (
   date_created timestamp without time zone NOT NULL DEFAULT now()
 );
 
+CREATE TYPE hipchat_settings AS ENUM ('off', 'quiet', 'all');
+
 CREATE TABLE environments (
   environment_id integer NOT NULL
       DEFAULT nextval('environment_id_seq')
       PRIMARY KEY,
-  name varchar(255),
-  hipchat_alert boolean
+  environment_name varchar(255) UNIQUE,
+  hipchat_mode hipchat_settings,
+  date_created timestamp without time zone NOT NULL DEFAULT now()
 );
 
 CREATE TABLE release_candidates (
@@ -71,10 +74,8 @@ CREATE TABLE deploys (
       DEFAULT nextval('deploy_id_seq')
       PRIMARY KEY,
   deploy_date timestamp without time zone NOT NULL DEFAULT now(),
-  project_id integer NOT NULL REFERENCES projects (project_id),
   release_candidate_id integer NOT NULL
       REFERENCES release_candidates (release_candidate_id),
   environment_id integer NOT NULL REFERENCES environments (environment_id),
   deploying_user varchar(256)
 );
-CREATE INDEX deploy_project_date ON deploys (project_id, deploy_date);
