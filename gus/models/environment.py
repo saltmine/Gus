@@ -1,8 +1,12 @@
 '''
 Database interface for the environment model
 '''
+import logging
 
 import gus.config
+from lipstick.mget import mget, build_clauses
+
+log = logging.getLogger(__name__)
 
 PUBLIC_FIELDS = ('environment_id',
     'environment_name',
@@ -17,7 +21,7 @@ def get_fields_for_sql(table_alias='e', count=False, ids_only=False):
   if count:
     fields = "count(*) as cnt"
   elif ids_only:
-    fields = "%s.project_id" % table_alias
+    fields = "%s.environment_id" % table_alias
   else:
     fields = ', '.join(["%s.%s" % (table_alias, field)
       for field in PUBLIC_FIELDS])
@@ -73,17 +77,23 @@ def get_by_name(environment_name):
   return res
 
 
-def mget_all():
+@mget
+def mget_all(offset=None, limit=None, count=False, ids_only=False):
   '''List all environments
   '''
-  fields = get_fields_for_sql()
+  fields = get_fields_for_sql(count=count, ids_only=ids_only)
+  page_clause, order_clause = build_clauses(count=count,
+      default_order='environment_id')
+  query_vars = {'offset': offset, 'limit': limit}
   with gus.config.get_db_conn().cursor() as c:
     c.execute("""
         SELECT
           %s
         FROM
           environments e
-        """ % fields)
+        %s
+        %s
+        """ % (fields, order_clause, page_clause), query_vars)
     res = c.fetchall()
   return res
 
