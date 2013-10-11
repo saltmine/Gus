@@ -66,7 +66,8 @@ CREATE TABLE release_candidates (
   branch_name varchar(255) NOT NULL,
   revision_id varchar(255) NOT NULL,
   code_tarball_location text NOT NULL,
-  venv_tarball_location text NOT NULL
+  venv_tarball_location text NOT NULL,
+  CONSTRAINT release_candidate_project_reviesion_key UNIQUE (project_id, revision_id)
 );
 
 CREATE TABLE deploys (
