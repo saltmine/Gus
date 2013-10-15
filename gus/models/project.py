@@ -21,16 +21,21 @@ def get_fields_for_sql(table_alias='p', count=False, ids_only=False):
   return fields
 
 
-def create(project_name):
+def create_or_get(project_name):
   '''Create a new project entry
   '''
-  with gus.config.get_db_conn().cursor() as c:
-    c.execute("""
-        INSERT INTO projects (project_name)
-        VALUES (%s)
-        RETURNING project_id
-        """, (project_name,))
-    new_id = c.fetchone().project_id
+  with gus.config.get_db_conn().cursor(lock=project_name) as c:
+    # The get happens in the same cursor because of the nesting magic
+    project_info = get_by_name(project_name)
+    if project_info is None:
+      c.execute("""
+          INSERT INTO projects (project_name)
+          VALUES (%s)
+          RETURNING project_id
+          """, (project_name,))
+      new_id = c.fetchone().project_id
+    else:
+      new_id = project_info['project_id']
   return new_id
 
 

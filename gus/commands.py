@@ -1,11 +1,15 @@
-'''Tools for managing deploys
-'''
+"""Tools for managing deploys
+"""
 from newman import Newman
 
 from .scripts import database
+from .scripts import register
 
 
 def main():
-  n = Newman("Automation tools for deploys and related information")
-  n.load_module(database, 'database')
-  n.go()
+  """Load CLI functions from script modules
+  """
+  newman = Newman("Automation tools for deploys and related information")
+  newman.load_module(database, 'database')
+  newman.load_module(register, 'register')
+  newman.go()
