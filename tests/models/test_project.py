@@ -50,6 +50,26 @@ class TestProjectModel(object):
     new_id = project.create_or_get(self.project_name)
     eq_(new_id, self.project_id)
 
+  def test_set_and_get_deploy_dir(self):
+    """Can set and get the deploy dir for a project
+    """
+    before = project.get_by_id(self.project_id)
+    eq_(before['deploy_target_dir'], None, "GUARD: Deploy dir set at start")
+    deploy_dir = '/opt/outland/app/'
+    project.set_deploy_dir(self.project_id, deploy_dir)
+    after = project.get_by_id(self.project_id)
+    eq_(after['deploy_target_dir'], deploy_dir)
+
+  def test_set_and_get_venv_dir(self):
+    """Can set and get the venv dir for a project
+    """
+    before = project.get_by_id(self.project_id)
+    eq_(before['venv_target_dir'], None, "GUARD: venv dir set at start")
+    venv_dir = '/opt/outland/app/'
+    project.set_venv_dir(self.project_id, venv_dir)
+    after = project.get_by_id(self.project_id)
+    eq_(after['venv_target_dir'], venv_dir)
+
 
 class TestMgetAllProject(MgetTestBase):
   '''Test that project.mget_all conforms to the mget standard

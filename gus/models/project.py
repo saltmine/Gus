@@ -5,7 +5,13 @@ Database interface for the project model
 from lipstick.mget import mget, build_clauses
 import gus.config
 
-PUBLIC_FIELDS = ('project_id', 'project_name', 'date_created',)
+PUBLIC_FIELDS = (
+    'project_id',
+    'project_name',
+    'date_created',
+    'deploy_target_dir',
+    'venv_target_dir',
+)
 
 
 def get_fields_for_sql(table_alias='p', count=False, ids_only=False):
@@ -71,6 +77,36 @@ def get_by_name(project_name):
         ''' % fields, (project_name,))
     res = c.fetchone()
   return res
+
+
+def set_deploy_dir(project_id, deploy_dir):
+  """Set the target dir to deploy to
+  """
+  query_vars = {'project_id': project_id, 'deploy_dir': deploy_dir}
+  with gus.config.get_db_conn().cursor() as c:
+    c.execute("""
+        UPDATE
+          projects
+        SET
+          deploy_target_dir=%(deploy_dir)s
+        WHERE
+          project_id=%(project_id)s
+        """, query_vars)
+
+
+def set_venv_dir(project_id, venv_dir):
+  """Set the directory to deploy the venv to
+  """
+  query_vars = {'project_id': project_id, 'venv_dir': venv_dir}
+  with gus.config.get_db_conn().cursor() as c:
+    c.execute("""
+        UPDATE
+          projects
+        SET
+          venv_target_dir=%(venv_dir)s
+        WHERE
+          project_id=%(project_id)s
+        """, query_vars)
 
 
 @mget
