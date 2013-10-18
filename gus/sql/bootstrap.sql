@@ -52,6 +52,8 @@ CREATE TABLE projects (
   project_name varchar(255) UNIQUE,
   deploy_target_dir text,
   venv_target_dir text,
+  pre_activate_hook text,
+  post_activate_hook text,
   date_created timestamp without time zone NOT NULL DEFAULT now()
 );
 CREATE INDEX project_date_created_idx ON projects (date_created);

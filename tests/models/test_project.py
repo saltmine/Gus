@@ -70,6 +70,22 @@ class TestProjectModel(object):
     after = project.get_by_id(self.project_id)
     eq_(after['venv_target_dir'], venv_dir)
 
+  def test_set_and_get_preactivate_hook(self):
+    before = project.get_by_id(self.project_id)
+    eq_(before['pre_activate_hook'], None, "GUARD: venv dir set at start")
+    hook = 'helios deploy before_activation'
+    project.set_pre_activate_hook(self.project_id, hook)
+    after = project.get_by_id(self.project_id)
+    eq_(after['pre_activate_hook'], hook)
+
+  def test_set_and_get_postactivate_hook(self):
+    before = project.get_by_id(self.project_id)
+    eq_(before['post_activate_hook'], None, "GUARD: venv dir set at start")
+    hook = 'helios deploy before_activation'
+    project.set_post_activate_hook(self.project_id, hook)
+    after = project.get_by_id(self.project_id)
+    eq_(after['post_activate_hook'], hook)
+
 
 class TestMgetAllProject(MgetTestBase):
   '''Test that project.mget_all conforms to the mget standard

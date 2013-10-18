@@ -11,6 +11,8 @@ PUBLIC_FIELDS = (
     'date_created',
     'deploy_target_dir',
     'venv_target_dir',
+    'pre_activate_hook',
+    'post_activate_hook',
 )
 
 
@@ -104,6 +106,36 @@ def set_venv_dir(project_id, venv_dir):
           projects
         SET
           venv_target_dir=%(venv_dir)s
+        WHERE
+          project_id=%(project_id)s
+        """, query_vars)
+
+
+def set_pre_activate_hook(project_id, hook):
+  """Set the directory to deploy the venv to
+  """
+  query_vars = {'project_id': project_id, 'hook': hook}
+  with gus.config.get_db_conn().cursor() as c:
+    c.execute("""
+        UPDATE
+          projects
+        SET
+          pre_activate_hook=%(hook)s
+        WHERE
+          project_id=%(project_id)s
+        """, query_vars)
+
+
+def set_post_activate_hook(project_id, hook):
+  """Set the directory to deploy the venv to
+  """
+  query_vars = {'project_id': project_id, 'hook': hook}
+  with gus.config.get_db_conn().cursor() as c:
+    c.execute("""
+        UPDATE
+          projects
+        SET
+          post_activate_hook=%(hook)s
         WHERE
           project_id=%(project_id)s
         """, query_vars)
