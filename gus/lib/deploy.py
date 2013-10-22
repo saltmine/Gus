@@ -1,9 +1,10 @@
 import logging
 import os.path
+import tarfile
+import re
 
 from multiprocessing.dummy import Pool, Lock
 import subprocess
-import chef
 
 from gus.models import chef_role
 from gus.models import project
@@ -34,16 +35,37 @@ def _push_and_untar(box, tarball_source, target_dir, temp_dir='/tmp/'):
   # TODO: delete or archive tarball?
 
 
+def get_toplevel_dir_from_tarball(tarball_path):
+  """If the tarball has a single top level directory, return its name.
+  Otherwise, return None
+  """
+  if not os.path.isfile(tarball_path):
+    return None
+  tf = tarfile.open(tarball_path)
+  top_level = tf.getmembers()
+  if top_level[0].isdir():
+    return top_level[0]
+  else:
+    return None
+
+
 class Deploy(object):
-  def __init__(self, release_candidate_id, chef_api=None):
+  """Manage data and actions relevant to deploying code
+  """
+
+  def __init__(self, release_candidate_id, chef_api=None,
+      deploy_user='outland'):
     self.chef_api = chef_api
     self.chef_app_prefs = None
+    self.deploy_user = deploy_user  # TODO: get this from the project model
 
     # turn app:app_rev into tarball url
     self.rc = release_candidate.get_by_id(release_candidate_id)
     self.project = project.get_by_id(self.rc['project_id'])
     self.lock = Lock()
     self.nodes = []
+    self.code_dir = None
+    self.venv_dir = None
 
   @property
   def available_roles(self):
@@ -58,9 +80,11 @@ class Deploy(object):
     """
     # does this app_rev exist for this app?
     #TODO: should we raise here?
-    if not os.path.isfile(self.rc['code_tarball_location']):
-      return None
-    if not os.path.isfile(self.rc['venv_tarball_location']):
+    self.code_dir = get_toplevel_dir_from_tarball(
+        self.rc['code_tarball_location'])
+    self.venv_dir = get_toplevel_dir_from_tarball(
+        self.rc['venv_tarball_location'])
+    if not self.code_dir or not self.venv_dir:
       return None
 
     #dn = chef.Node('dev-monitor-001', api=self.chef_api)
@@ -73,11 +97,7 @@ class Deploy(object):
       raise RuntimeError("Attempting to deploy to invalid role: %s" % (
         target_role_names - available_role_names))
 
-    # Turn role list into node list
-    role_clause = ' OR '.join(['role:%s' % r['chef_role_name'] for r in roles])
-    chef_query = "chef_environment:%s AND (%s)" % (env['environment_name'],
-        role_clause)
-    self.nodes = self.chef_api.Search('node', chef_query)
+    self.load_node_list(roles, env)
     # can we deploy app to these nodes?
     if not self.nodes:
       return None
@@ -89,10 +109,16 @@ class Deploy(object):
     # transfer tarballs to servers
     self._transfer()
 
-    # TODO: Database migrations? Other scripts? Pip activate?
-    # Does this app interface with a db?
-      # do we need to run a migration?
-        # activate() on role('migration')
+    # Run pre-activate hook script on role migration
+    # TODO: Make sure the script exists
+    migration_tag = 'gus_migration'
+    chef_query = "chef_environment:%s AND tags:%s" % (env['environment_name'],
+        migration_tag)
+    migration_node = self.chef_api.Search('node', chef_query)
+    box = "%s@%s" % (self.deploy_user,
+        migration_node['automatic']['ipaddress_eth1'])
+    script = os.path.join([self.code_dir, self.project['pre_activate_hook']])
+    run_as_subprocess('/usr/bin/ssh', box, '"%s"' % script, self.venv_dir)
 
     # activate on all machines
     self._activate()
@@ -110,13 +136,13 @@ class Deploy(object):
     res = pool.map(self._transfer_to_node, self.nodes)
     return res
 
-  def _transfer_to_node(self, node, deploy_user='outland'):
+  def _transfer_to_node(self, node):
     # Logging doesn't play nicely with multi-processing, so lock before
     # logging.
     self.lock.acquire()
     log.info("Tranferring tarballs to node: %s", node)
     self.lock.release()
-    box = "%s@%s" % (deploy_user, node['automatic']['ipaddress_eth1'])
+    box = "%s@%s" % (self.deploy_user, node['automatic']['ipaddress_eth1'])
 
     # Deploy and untar code
     _push_and_untar(box, self.rc['code_tarball_location'],
@@ -133,35 +159,44 @@ class Deploy(object):
         '"%s && %s"' % (venv_activate, pip_install))
 
   def _activate(self):
-    # if we are serializing deploy
-      # TODO
-    # for each node:
-      # is it consumer facing and attached to lb
-        # check if there is more than one node attached to lb, raise if not
-        # detach from lb
-        # activate node
-        # attach to lb
     pool = Pool(min(len(self.nodes, MAX_NUM_WORKERS)))
     res = pool.map(self._activate_node, self.nodes)
     return res
 
   def _activate_node(self, node):
-    raise NotImplementedError
+    box = "%s@%s" % (self.deploy_user, node['automatic']['ipaddress_eth1'])
+    # Cut the code & venv symlinks over
+    run_as_subprocess('/usr/bin/ssh', box,
+        "'unlink /opt/%(pn)s/app && ln -s %(dir)s /opt/%(pn)s/app'"
+        % {'pn': self.project['project_name'], 'dir': self.code_dir})
+    run_as_subprocess('/usr/bin/ssh', box,
+        "'unlink /opt/%(pn)s/app_virtual_env && " \
+        "ln -s %(dir)s /opt/%(pn)s/app_virtual_env'"
+        % {'pn': self.project['project_name'], 'dir': self.venv_dir})
+
+    # Restart uwsgi
+    raw_status = subprocess.check_output('/usr/bin/ssh', box,
+        'supervisorctl status')
+    process_list = raw_status.decode('utf8').split("\n")
+    for row in process_list:
+      if '%s:uwsgi' % self.project['project_name'] in row:
+        match = re.search('pid (\d+)', row)
+        if match:
+          pid = match.group(1)
+          run_as_subprocess('/usr/bin/ssh', box, "sudo kill -HUP %s" % pid)
+
+    # Start all supervisor tasks <project>:task:*
+    run_as_subprocess('/usr/bin/ssh', box,
+        '"supervisorctl restart %s:task:*"' % self.project['project_name'])
+    # TODO: run status again to check for errors
     return
 
-  # def reload_config():
-  def get_nodes(self):
-    raise NotImplementedError
-    return
+  def load_node_list(self, roles, env):
+    # Turn role list into node list
+    role_clause = ' OR '.join(['role:%s' % r['chef_role_name'] for r in roles])
+    chef_query = "chef_environment:%s AND (%s)" % (env['environment_name'],
+        role_clause)
+    self.nodes = self.chef_api.Search('node', chef_query)
 
   def _upload_static_assets_to_cdn():
     raise NotImplementedError
-
-if __name__ == "__main__":
-  api = chef.ChefAPI('https://chef.keep.dev', '.chef/user.pem', 'ryan')
-
-  d = Deploy('outland', '2241acc7965514bfd99e49305840816fc182212b',
-             chef_api=api)
-  d.load()
-  print d.available_roles
-  d.deploy(env='dev', roles=['www'])
